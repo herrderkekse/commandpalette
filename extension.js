@@ -24,6 +24,7 @@ const CommandIndicator = GObject.registerClass(
             this.add_child(icon);
 
 
+
             /**************** Create overlay elements *****************/
             // main container
             this._overlayBin = new St.BoxLayout({
@@ -70,6 +71,13 @@ const CommandIndicator = GObject.registerClass(
             this._entry.clutter_text.connect('key-press-event', this._handleKeyPress.bind(this));
 
 
+
+            /*************** Initialize state variables ***************/
+            this._suggestions = COMMANDS;
+            this._selectedIndex = -1;
+
+
+
         }
 
 
@@ -92,6 +100,14 @@ const CommandIndicator = GObject.registerClass(
             const sym = event.get_key_symbol();
 
             if (sym === Clutter.KEY_Return) {
+                if (this._selectedIndex !== -1) {
+                    this._executeCommand(this._suggestions[this._selectedIndex]);
+                    this._selectedIndex = -1;
+                    this._highlightSelected();
+                    this._hideOverlay();
+                    return Clutter.EVENT_STOP;
+                }
+
                 // Delay reading `.text` until after the event has fully propagated
                 GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
                     const command = this._entry.text;
@@ -102,7 +118,23 @@ const CommandIndicator = GObject.registerClass(
                 return Clutter.EVENT_STOP;
             }
             else if (sym === Clutter.KEY_Escape) {
+                this._selectedIndex = -1;
+                this._highlightSelected();
                 this._hideOverlay();
+                return Clutter.EVENT_STOP;
+            }
+            else if (sym === Clutter.KEY_Up) {
+                if (this._suggestions.length > 0) {
+                    this._selectedIndex = Math.max(0, this._selectedIndex - 1);
+                    this._highlightSelected();
+                }
+                return Clutter.EVENT_STOP;
+            }
+            else if (sym === Clutter.KEY_Down) {
+                if (this._suggestions.length > 0) {
+                    this._selectedIndex = Math.min(this._suggestions.length - 1, this._selectedIndex + 1);
+                    this._highlightSelected();
+                }
                 return Clutter.EVENT_STOP;
             }
             else {
@@ -123,24 +155,50 @@ const CommandIndicator = GObject.registerClass(
                 // return;
             }
 
-            if (matches.length === 0) {
-                this._suggestionBox.hide();
-                return;
-            }
 
-            for (const cmd of matches) {
-                const label = new St.Label({ text: cmd, style_class: 'suggestion-item' });
+            this._suggestions = matches;
+            this._selectedIndex = -1;
+
+            matches.forEach((cmd, index) => {
+                const label = new St.Label({
+                    text: cmd,
+                    style_class: 'suggestion-item',
+                });
+
                 label.reactive = true;
+
                 label.connect('button-press-event', () => {
                     this._entry.set_text(cmd);
                     this._executeCommand(cmd);
                     this._hideOverlay();
                 });
+
                 this._suggestionBox.add_child(label);
+            });
+
+            this._highlightSelected();
+            if (matches.length === 0) {
+                this._suggestionBox.hide();
+            }
+            else {
+                this._suggestionBox.show();
             }
 
-            this._suggestionBox.show();
         }
+
+
+        _highlightSelected() {
+            console.log('highlighting ', this._selectedIndex);
+            const children = this._suggestionBox.get_children();
+            for (let i = 0; i < children.length; i++) {
+                if (i === this._selectedIndex) {
+                    children[i].add_style_class_name('selected');
+                } else {
+                    children[i].remove_style_class_name('selected');
+                }
+            }
+        }
+
 
         _executeCommand(command) {
             // Implement command execution logic here

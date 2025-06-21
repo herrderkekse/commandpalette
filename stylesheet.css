@@ -17,3 +17,12 @@
 .suggestion-item:hover {
     background: #555;
 }
+
+.suggestionBox .suggestion-item {
+    padding: 4px 8px;
+}
+
+.suggestionBox .suggestion-item.selected {
+    background-color: #4a90d9;
+    color: white;
+}
