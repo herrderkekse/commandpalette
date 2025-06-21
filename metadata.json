@@ -1,0 +1,8 @@
+{
+  "name": "commandpalette",
+  "description": "a vs code style but sytem wide command palette",
+  "uuid": "commandpalette@herrderkekse.github.com",
+  "shell-version": [
+    "48"
+  ]
+}
