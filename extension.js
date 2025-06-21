@@ -8,6 +8,9 @@ import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
+const COMMANDS = ['open1', 'open2', 'open3', 'open4', 'open5', 'close', 'status', 'restart', 'help', 'quit'];
+
+
 const CommandIndicator = GObject.registerClass(
     class CommandIndicator extends PanelMenu.Button {
         _init() {
@@ -20,42 +23,63 @@ const CommandIndicator = GObject.registerClass(
             });
             this.add_child(icon);
 
-            // Create overlay entry
+
+            /**************** Create overlay elements *****************/
+            // main container
+            this._overlayBin = new St.BoxLayout({
+                style_class: 'container',
+                vertical: true,
+            });
+
+            // input field
             this._entry = new St.Entry({
                 hint_text: 'Type command...',
                 can_focus: true,
                 x_expand: true,
             });
 
-            this._overlayBin = new St.Bin({
-                style_class: 'container',
-                x_align: Clutter.ActorAlign.CENTER,
-                y_align: Clutter.ActorAlign.CENTER,
-                x_expand: true,
-                y_expand: true,
+            // container for input field suggestions
+            this._suggestionBox = new St.BoxLayout({
+                vertical: true,
+                style_class: 'suggestionBox',
                 reactive: true,
-                can_focus: true,
             });
-            this._overlayBin.set_child(this._entry);
+            // this._suggestionBox.hide();
+            this._updateSuggestions();
 
 
-            //this._entry.set_position(100, 100);
+            // add children to main container
+            this._overlayBin.add_child(this._entry);
+            this._overlayBin.add_child(this._suggestionBox);
 
 
-            // Connect key press event
-            this._entry.clutter_text.connect('key-press-event', this._handleKeyPress.bind(this));
 
+            /*************** Connect event listeners ***************/
+            // handle click on icon in top bar
             this.connect('button-press-event', () => {
                 this._showOverlay();
                 return Clutter.EVENT_STOP;
             });
+
+            // handle updating suggestions
+            this._entry.clutter_text.connect('text-changed', () => {
+                this._updateSuggestions();
+            });
+
+            // handle typing in entry
+            this._entry.clutter_text.connect('key-press-event', this._handleKeyPress.bind(this));
+
+
         }
+
+
 
         _showOverlay() {
             Main.layoutManager.addTopChrome(this._overlayBin);
             this._entry.show();
             this._entry.grab_key_focus();
         }
+
         _hideOverlay() {
             this._entry.text = '';
             this._entry.hide();
@@ -85,6 +109,37 @@ const CommandIndicator = GObject.registerClass(
                 // Let Clutter handle regular typing
                 return Clutter.EVENT_PROPAGATE;
             }
+        }
+
+
+        _updateSuggestions() {
+            const text = this._entry.text.toLowerCase();
+            this._suggestionBox.destroy_all_children();
+
+            const matches = COMMANDS.filter(cmd => cmd.startsWith(text));
+
+            if (text === '') {
+                // TODO: show history/most used commands
+                // return;
+            }
+
+            if (matches.length === 0) {
+                this._suggestionBox.hide();
+                return;
+            }
+
+            for (const cmd of matches) {
+                const label = new St.Label({ text: cmd, style_class: 'suggestion-item' });
+                label.reactive = true;
+                label.connect('button-press-event', () => {
+                    this._entry.set_text(cmd);
+                    this._executeCommand(cmd);
+                    this._hideOverlay();
+                });
+                this._suggestionBox.add_child(label);
+            }
+
+            this._suggestionBox.show();
         }
 
         _executeCommand(command) {

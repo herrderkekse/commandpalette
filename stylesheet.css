@@ -1,5 +1,19 @@
 .container {
-    background-color: rgba(0, 0, 0, 0.5);
-    border-radius: 10px;
     padding: 10px;
+}
+
+.suggestionBox {
+    margin-top: 4px;
+    width: 200px;
+    background: rgba(50, 50, 50, 0.95);
+    border: 1px solid #666;
+    border-radius: 4px;
+}
+
+.suggestion-item {
+    padding: 4px 8px;
+}
+
+.suggestion-item:hover {
+    background: #555;
 }
