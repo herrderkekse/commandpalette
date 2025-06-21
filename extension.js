@@ -200,6 +200,12 @@ const CommandIndicator = GObject.registerClass(
             // Implement command execution logic here
             let cmd = this._CONFIG.find(cmd => cmd.name === command);
             Main.notify(`Executing ${command}`, `${cmd.script} with args ${cmd.args}`);
+            let argv = [cmd.script, ...cmd.args];
+            try {
+                GLib.spawn_async(null, argv, null, GLib.SpawnFlags.SEARCH_PATH, null);
+            } catch (e) {
+                log(`Error running script: ${e}`);
+            }
         }
 
         _loadUserConfig() {
