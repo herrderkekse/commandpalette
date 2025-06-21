@@ -8,12 +8,12 @@ import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-const COMMANDS = ['open1', 'open2', 'open3', 'open4', 'open5', 'close', 'status', 'restart', 'help', 'quit'];
 
 
 const CommandIndicator = GObject.registerClass(
     class CommandIndicator extends PanelMenu.Button {
         _init() {
+
             super._init(0, 'CommandPalette');
 
             // Add icon
@@ -22,6 +22,14 @@ const CommandIndicator = GObject.registerClass(
                 style_class: 'system-status-icon',
             });
             this.add_child(icon);
+
+
+
+            /*************** Initialize state variables ***************/
+            this._selectedIndex = -1;
+            this._CONFIG = Object.freeze(this._loadUserConfig());
+            this._COMMANDS = Object.freeze(this._CONFIG.map(cmd => cmd.name));
+            this._suggestions = this._COMMANDS;
 
 
 
@@ -70,14 +78,6 @@ const CommandIndicator = GObject.registerClass(
             // handle typing in entry
             this._entry.clutter_text.connect('key-press-event', this._handleKeyPress.bind(this));
 
-
-
-            /*************** Initialize state variables ***************/
-            this._suggestions = COMMANDS;
-            this._selectedIndex = -1;
-
-
-
         }
 
 
@@ -94,7 +94,6 @@ const CommandIndicator = GObject.registerClass(
             Main.layoutManager.removeChrome(this._overlayBin);
 
         }
-
 
         _handleKeyPress(_, event) {
             const sym = event.get_key_symbol();
@@ -143,12 +142,11 @@ const CommandIndicator = GObject.registerClass(
             }
         }
 
-
         _updateSuggestions() {
             const text = this._entry.text.toLowerCase();
             this._suggestionBox.destroy_all_children();
 
-            const matches = COMMANDS.filter(cmd => cmd.startsWith(text));
+            const matches = this._COMMANDS.filter(cmd => cmd.startsWith(text));
 
             if (text === '') {
                 // TODO: show history/most used commands
@@ -186,7 +184,6 @@ const CommandIndicator = GObject.registerClass(
 
         }
 
-
         _highlightSelected() {
             console.log('highlighting ', this._selectedIndex);
             const children = this._suggestionBox.get_children();
@@ -199,10 +196,37 @@ const CommandIndicator = GObject.registerClass(
             }
         }
 
-
         _executeCommand(command) {
             // Implement command execution logic here
-            Main.notify(`Executing command: ${command}`);
+            let cmd = this._CONFIG.find(cmd => cmd.name === command);
+            Main.notify(`Executing ${command}`, `${cmd.script} with args ${cmd.args}`);
+        }
+
+        _loadUserConfig() {
+            // load config.json
+            let configPath = GLib.build_filenamev([
+                GLib.get_home_dir(),
+                '.local',
+                'share',
+                'gnome-shell',
+                'extensions',
+                'commandpalette@herrderkekse.github.com',
+                'config.json',
+            ]);
+
+            try {
+                let [ok, contents] = GLib.file_get_contents(configPath);
+                if (!ok) {
+                    console.log('Failed to read config file');
+                    // throw new Error("Failed to read config file");
+                }
+
+                let config = JSON.parse(imports.byteArray.toString(contents));
+                return config;
+            } catch (e) {
+                console.log(`Failed to load config: ${e}`);
+                return null;
+            }
         }
     });
 

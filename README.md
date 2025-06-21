@@ -18,3 +18,6 @@ the first time you do that you also have to open a terminal **inside** the neste
 ```bash
 gnome-extensions enable commandpalette@herrderkekse.github.com
 ```
+
+## TODO
+commands are getting run as the user from `/home/{user}`
