@@ -2,11 +2,16 @@ import GObject from 'gi://GObject';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
+import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 
 
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as ExtensionUtils from 'resource:///org/gnome/shell/misc/extensionUtils.js';
+
 
 
 
@@ -238,12 +243,25 @@ const CommandIndicator = GObject.registerClass(
 
 export default class CommandPaletteExtension extends Extension {
     enable() {
+        this._settings = this.getSettings();
+
         this._indicator = new CommandIndicator();
         Main.panel.addToStatusArea(this.uuid, this._indicator);
+
+        Main.wm.addKeybinding(
+            'shortcut',
+            this._settings,
+            Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
+            Shell.ActionMode.ALL,
+            () => { this._indicator._showOverlay(); }
+        );
     }
 
+
     disable() {
+        Main.wm.removeKeybinding('shortcut');
         this._indicator.destroy();
         this._indicator = null;
+        this._settings = null;
     }
 }

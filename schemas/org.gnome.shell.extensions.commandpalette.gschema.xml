@@ -1,0 +1,9 @@
+<schemalist>
+  <schema id="org.gnome.shell.extensions.commandpalette" path="/org/gnome/shell/extensions/commandpalette/">
+    <key name="shortcut" type="as">
+      <default><![CDATA[['<Control><Alt>p']]]></default>
+      <summary>Command palette shortcut</summary>
+      <description>Global keybinding to open the command palette.</description>
+    </key>
+  </schema>
+</schemalist>

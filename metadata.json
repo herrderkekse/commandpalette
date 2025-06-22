@@ -4,5 +4,6 @@
   "uuid": "commandpalette@herrderkekse.github.com",
   "shell-version": [
     "48"
-  ]
+  ],
+  "settings-schema": "org.gnome.shell.extensions.commandpalette"
 }
