@@ -2,7 +2,6 @@ import GObject from 'gi://GObject';
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
-import Gio from 'gi://Gio';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 
@@ -10,7 +9,6 @@ import Shell from 'gi://Shell';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as ExtensionUtils from 'resource:///org/gnome/shell/misc/extensionUtils.js';
 
 
 
@@ -33,8 +31,13 @@ const CommandIndicator = GObject.registerClass(
             /*************** Initialize state variables ***************/
             this._selectedIndex = -1;
             this._CONFIG = Object.freeze(this._loadUserConfig());
-            this._COMMANDS = Object.freeze(this._CONFIG.map(cmd => cmd.name));
+            this._COMMAND_MAP = new Map(this._CONFIG.map(cmd => [cmd.id, cmd]));
+            this._COMMANDS = Object.freeze(this._CONFIG.map(cmd => ({
+                id: cmd.id,
+                name: cmd.name
+            })));
             this._suggestions = this._COMMANDS;
+
 
 
 
@@ -105,7 +108,7 @@ const CommandIndicator = GObject.registerClass(
 
             if (sym === Clutter.KEY_Return) {
                 if (this._selectedIndex !== -1) {
-                    this._executeCommand(this._suggestions[this._selectedIndex]);
+                    this._executeCommandById(this._suggestions[this._selectedIndex].id);
                     this._selectedIndex = -1;
                     this._highlightSelected();
                     this._hideOverlay();
@@ -151,28 +154,27 @@ const CommandIndicator = GObject.registerClass(
             const text = this._entry.text.toLowerCase();
             this._suggestionBox.destroy_all_children();
 
-            const matches = this._COMMANDS.filter(cmd => cmd.startsWith(text));
+            const matches = this._COMMANDS.filter(cmd => cmd.name.toLowerCase().startsWith(text));
 
             if (text === '') {
                 // TODO: show history/most used commands
                 // return;
             }
 
-
             this._suggestions = matches;
             this._selectedIndex = -1;
 
-            matches.forEach((cmd, index) => {
+            matches.forEach((cmdObj, index) => {
                 const label = new St.Label({
-                    text: cmd,
+                    text: cmdObj.name,
                     style_class: 'suggestion-item',
                 });
 
                 label.reactive = true;
 
                 label.connect('button-press-event', () => {
-                    this._entry.set_text(cmd);
-                    this._executeCommand(cmd);
+                    this._entry.set_text(cmdObj.name);
+                    this._executeCommandById(cmdObj.id);
                     this._hideOverlay();
                 });
 
@@ -202,9 +204,19 @@ const CommandIndicator = GObject.registerClass(
         }
 
         _executeCommand(command) {
-            // Implement command execution logic here
-            let cmd = this._CONFIG.find(cmd => cmd.name === command);
-            Main.notify(`Executing ${command}`, `${cmd.script} with args ${cmd.args}`);
+            const matching = this._COMMANDS.find(cmd => cmd.name === command);
+            if (matching)
+                this._executeCommandById(matching.id);
+        }
+
+        _executeCommandById(id) {
+            const cmd = this._COMMAND_MAP.get(id);
+            if (!cmd) {
+                Main.notifyError(`Unknown command ID: ${id}`);
+                return;
+            }
+
+            Main.notify(`Executing ${cmd.name}`, `${cmd.script} with args ${cmd.args}`);
             let argv = [cmd.script, ...cmd.args];
             try {
                 GLib.spawn_async(null, argv, null, GLib.SpawnFlags.SEARCH_PATH, null);
@@ -229,14 +241,20 @@ const CommandIndicator = GObject.registerClass(
                 let [ok, contents] = GLib.file_get_contents(configPath);
                 if (!ok) {
                     console.log('Failed to read config file');
-                    // throw new Error("Failed to read config file");
+                    return [];
                 }
 
-                let config = JSON.parse(imports.byteArray.toString(contents));
-                return config;
+                let rawConfig = JSON.parse(imports.byteArray.toString(contents));
+
+                // Assign a unique ID to each entry (based on index)
+                return rawConfig.map((cmd, idx) => ({
+                    ...cmd,
+                    id: `cmd-${idx}`
+                }));
+
             } catch (e) {
                 console.log(`Failed to load config: ${e}`);
-                return null;
+                return [];
             }
         }
     });
