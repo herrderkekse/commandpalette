@@ -7,11 +7,21 @@ export class CommandRow {
         this.onChange = onChange; // callback when command data changes
         this.onRemove = onRemove; // callback when remove button is clicked
 
+
+
         this.widget = new Adw.PreferencesGroup({
-            title: `Command ${index + 1}` || 'New Command',
+            title: this._chooseTitle(index, command),
         });
 
         this._buildUI();
+    }
+
+    _chooseTitle(index, command) {
+        let title = `Command ${index + 1}`;
+        if (command.name == '' && command.script == '' && command.args.length == 0) {
+            title = 'New Command';
+        }
+        return title;
     }
 
     _buildUI() {

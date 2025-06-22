@@ -42,7 +42,6 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
 
             // Refresh UI when config path changes
             commands = _loadConfig(configPathRow.text);
-            console.log('commands', commands);
             _refreshCommandsUI();
         });
         group.add(configPathRow);
@@ -58,7 +57,7 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
         // --- Add Command button ---
         const addCmdBtn = new Adw.ButtonRow({ title: 'Add Command' });
         addCmdBtn.connect('activated', () => {
-            commands.push({ name: '', script: '', args: [] });
+            commands.push({ name: '', script: '', args: [], id: `cmd-${_getFreeId()}` });
             _refreshCommandsUI();
             _saveConfig(configPathRow.text, commands);
         });
@@ -73,6 +72,13 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
         function onCommandChange(index, updatedCommand) {
             commands[index] = updatedCommand;
             _saveConfig(configPathRow.text, commands);
+
+            // if theres no empty command field at the end, add one
+            if (!commands.some(cmd => cmd.name == '' && cmd.script == '' && cmd.args.length == 0)) {
+                commands.push({ name: '', script: '', args: [], id: `cmd-${_getFreeId()}` });
+                const row = new CommandRow(commands[commands.length - 1], commands.length - 1, onCommandChange, onCommandRemove);
+                commandsBox.append(row.getWidget());
+            }
         }
 
         function onCommandRemove(index) {
@@ -87,6 +93,21 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
                 const row = new CommandRow(cmd, i, onCommandChange, onCommandRemove);
                 commandsBox.append(row.getWidget());
             });
+
+            // if theres no empty command field at the end, add one
+            if (!commands.some(cmd => cmd.name == '' && cmd.script == '' && cmd.args.length == 0)) {
+                commands.push({ name: '', script: '', args: [], id: `cmd-${_getFreeId()}` });
+                const row = new CommandRow(commands[commands.length - 1], commands.length - 1, onCommandChange, onCommandRemove);
+                commandsBox.append(row.getWidget());
+            }
+        }
+
+        function _getFreeId() {
+            let id = 0;
+            while (commands.some(cmd => cmd.id === `cmd-${id}`)) {
+                id++;
+            }
+            return id;
         }
 
         function _loadConfig(configPath) {
@@ -98,7 +119,7 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
             try {
                 let [ok, contents] = GLib.file_get_contents(configPath);
                 if (!ok) {
-                    console.log('Failed to read config file');
+                    log('Failed to read config file');
                     return [];
                 }
 
@@ -111,7 +132,7 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
                 }));
 
             } catch (e) {
-                console.log(`Failed to load config: ${e}`);
+                log(`Failed to load config: ${e}`);
                 return [];
             }
         }
@@ -121,6 +142,15 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
                 configPath = configPath.replace('~', GLib.get_home_dir());
             }
             try {
+                // remove empty commands
+                data = data.filter(cmd => cmd.name !== '' || cmd.script !== '' || cmd.args.length !== 0);
+
+                // remove id from commands
+                data = data.map(cmd => {
+                    delete cmd.id;
+                    return cmd;
+                });
+
                 const jsonStr = JSON.stringify(data, null, 4);
                 GLib.file_set_contents(configPath, jsonStr);
             } catch (e) {
