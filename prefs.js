@@ -1,21 +1,20 @@
 import Adw from 'gi://Adw';
 import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
-import Gdk from 'gi://Gdk';
+import { CommandRow } from './components/commandRow.js';
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 export default class CommandPalettePrefs extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
-
-        // Load commands initially
         let commands = _loadConfig(settings.get_string('config-path'));
-
 
         const page = new Adw.PreferencesPage();
         const group = new Adw.PreferencesGroup({
             title: 'Command Palette Settings',
         });
+
+
 
         // --- Shortcut field ---
         const shortcutRow = new Adw.EntryRow({
@@ -56,7 +55,6 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
         _refreshCommandsUI();
 
 
-
         // --- Add Command button ---
         const addCmdBtn = new Adw.ButtonRow({ title: 'Add Command' });
         addCmdBtn.connect('activated', () => {
@@ -67,11 +65,29 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
         group.add(addCmdBtn);
 
 
-
-        // Add group to page, and page to window
         page.add(group);
         window.add(page);
 
+
+
+        function onCommandChange(index, updatedCommand) {
+            commands[index] = updatedCommand;
+            _saveConfig(configPathRow.text, commands);
+        }
+
+        function onCommandRemove(index) {
+            commands.splice(index, 1);
+            _refreshCommandsUI();
+            _saveConfig(configPathRow.text, commands);
+        }
+
+        function _refreshCommandsUI() {
+            _removeAllChildren(commandsBox);
+            commands.forEach((cmd, i) => {
+                const row = new CommandRow(cmd, i, onCommandChange, onCommandRemove);
+                commandsBox.append(row.getWidget());
+            });
+        }
 
         function _loadConfig(configPath) {
             // load config.json
@@ -112,64 +128,6 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
             }
         }
 
-        function _createCommandRow(command, index) {
-
-            const cmdgroup = new Adw.PreferencesGroup({
-                title: `Command ${index + 1}` || 'New Command',
-            });
-
-            // Name
-            const cmdnameRow = new Adw.EntryRow({
-                title: 'Command Name',
-                text: command.name || '',
-                visible: true,
-            });
-            cmdnameRow.connect('changed', () => {
-                commands[index].name = cmdnameRow.text;
-                _saveConfig(configPathRow.text, commands);
-            });
-            cmdgroup.add(cmdnameRow);
-
-            // Script
-            const cmdscriptRow = new Adw.EntryRow({
-                title: 'Script',
-                text: command.script || '',
-                visible: true,
-            });
-            cmdscriptRow.connect('changed', () => {
-                commands[index].script = cmdscriptRow.text;
-                _saveConfig(configPathRow.text, commands);
-            });
-            cmdgroup.add(cmdscriptRow);
-
-            // Args
-            const cmdargsRow = new Adw.EntryRow({
-                title: 'Args (comma separated)',
-                text: (command.args || []).join(', '),
-                visible: true,
-            });
-            cmdargsRow.connect('changed', () => {
-                commands[index].args = cmdargsRow.text.split(',').map(s => s.trim()).filter(Boolean);
-                _saveConfig(configPathRow.text, commands);
-            });
-            cmdgroup.add(cmdargsRow);
-
-
-            // Remove button
-            const removeBtn = new Adw.ButtonRow({
-                title: 'Remove Command',
-            });
-            removeBtn.add_css_class('destructive-action');
-            removeBtn.connect('activated', () => {
-                commands.splice(index, 1);
-                _refreshCommandsUI();
-                _saveConfig(configPathRow.text, commands);
-            });
-            cmdgroup.add(removeBtn);
-
-            return cmdgroup;
-        }
-
         function _removeAllChildren(container) {
             let child = container.get_first_child();
             while (child) {
@@ -177,13 +135,6 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
                 container.remove(child);
                 child = next;
             }
-        }
-
-        function _refreshCommandsUI() {
-            _removeAllChildren(commandsBox);
-            commands.forEach((cmd, i) => {
-                commandsBox.append(_createCommandRow(cmd, i));
-            });
         }
 
 
