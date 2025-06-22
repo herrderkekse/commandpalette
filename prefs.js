@@ -1,11 +1,16 @@
 import Adw from 'gi://Adw';
 import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
+import Gdk from 'gi://Gdk';
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 export default class CommandPalettePrefs extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
+
+        // Load commands initially
+        let commands = _loadConfig(settings.get_string('config-path'));
+
 
         const page = new Adw.PreferencesPage();
         const group = new Adw.PreferencesGroup({
@@ -35,38 +40,32 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
         configPathRow.connect('changed', () => {
             const val = configPathRow.text.trim();
             settings.set_string('config-path', val);
+
+            // Refresh UI when config path changes
+            commands = _loadConfig(configPathRow.text);
+            console.log('commands', commands);
+            _refreshCommandsUI();
         });
         group.add(configPathRow);
 
 
 
         // --- Commands UI ---
-        // Add UI to edit commands from config.json
         const commandsBox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 10 });
-
-        // Load commands initially
-        let commands = _loadConfig(settings.get_string('config-path'));
-
-        // Refresh UI when config path changes
-        configPathRow.connect('changed', () => {
-            commands = _loadConfig(configPathRow.text);
-            console.log('commands', commands);
-            _refreshCommandsUI();
-        });
-
-        // Add commandsBox below config path row
         group.add(commandsBox);
+        _refreshCommandsUI();
 
-        // Add "Add Command" button
-        const addCmdBtn = new Gtk.Button({ label: 'Add Command' });
-        addCmdBtn.connect('clicked', () => {
+
+
+        // --- Add Command button ---
+        const addCmdBtn = new Adw.ButtonRow({ title: 'Add Command' });
+        addCmdBtn.connect('activated', () => {
             commands.push({ name: '', script: '', args: [] });
             _refreshCommandsUI();
             _saveConfig(configPathRow.text, commands);
         });
         group.add(addCmdBtn);
 
-        _refreshCommandsUI();
 
 
         // Add group to page, and page to window
@@ -114,45 +113,61 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
         }
 
         function _createCommandRow(command, index) {
-            const box = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, margin_bottom: 10 });
+
+            const cmdgroup = new Adw.PreferencesGroup({
+                title: `Command ${index + 1}` || 'New Command',
+            });
 
             // Name
-            const nameRow = new Adw.EntryRow({ title: 'Name', text: command.name || '' });
-            nameRow.connect('changed', () => {
-                commands[index].name = nameRow.text;
+            const cmdnameRow = new Adw.EntryRow({
+                title: 'Command Name',
+                text: command.name || '',
+                visible: true,
+            });
+            cmdnameRow.connect('changed', () => {
+                commands[index].name = cmdnameRow.text;
                 _saveConfig(configPathRow.text, commands);
             });
-            box.append(nameRow);
+            cmdgroup.add(cmdnameRow);
 
             // Script
-            const scriptRow = new Adw.EntryRow({ title: 'Script', text: command.script || '' });
-            scriptRow.connect('changed', () => {
-                commands[index].script = scriptRow.text;
+            const cmdscriptRow = new Adw.EntryRow({
+                title: 'Script',
+                text: command.script || '',
+                visible: true,
+            });
+            cmdscriptRow.connect('changed', () => {
+                commands[index].script = cmdscriptRow.text;
                 _saveConfig(configPathRow.text, commands);
             });
-            box.append(scriptRow);
+            cmdgroup.add(cmdscriptRow);
 
             // Args
-            const argsRow = new Adw.EntryRow({
+            const cmdargsRow = new Adw.EntryRow({
                 title: 'Args (comma separated)',
                 text: (command.args || []).join(', '),
+                visible: true,
             });
-            argsRow.connect('changed', () => {
-                commands[index].args = argsRow.text.split(',').map(s => s.trim()).filter(Boolean);
+            cmdargsRow.connect('changed', () => {
+                commands[index].args = cmdargsRow.text.split(',').map(s => s.trim()).filter(Boolean);
                 _saveConfig(configPathRow.text, commands);
             });
-            box.append(argsRow);
+            cmdgroup.add(cmdargsRow);
+
 
             // Remove button
-            const removeBtn = new Gtk.Button({ label: 'Remove Command', halign: Gtk.Align.END });
-            removeBtn.connect('clicked', () => {
+            const removeBtn = new Adw.ButtonRow({
+                title: 'Remove Command',
+            });
+            removeBtn.add_css_class('destructive-action');
+            removeBtn.connect('activated', () => {
                 commands.splice(index, 1);
                 _refreshCommandsUI();
                 _saveConfig(configPathRow.text, commands);
             });
-            box.append(removeBtn);
+            cmdgroup.add(removeBtn);
 
-            return box;
+            return cmdgroup;
         }
 
         function _removeAllChildren(container) {
