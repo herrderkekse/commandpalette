@@ -5,5 +5,10 @@
       <summary>Command palette shortcut</summary>
       <description>Global keybinding to open the command palette.</description>
     </key>
+    <key name="config-path" type="s">
+      <default>'~/.local/share/gnome-shell/extensions/commandpalette@herrderkekse.github.com/config.json'</default>
+      <summary>Path to user command config</summary>
+      <description>Path to the JSON file describing custom command entries</description>
+    </key>
   </schema>
 </schemalist>

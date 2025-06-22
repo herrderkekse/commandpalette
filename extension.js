@@ -15,9 +15,10 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 const CommandIndicator = GObject.registerClass(
     class CommandIndicator extends PanelMenu.Button {
-        _init() {
+        constructor(settings) {
+            super(0.0, 'Command Indicator');
+            this._settings = settings;
 
-            super._init(0, 'CommandPalette');
 
             // Add icon
             let icon = new St.Icon({
@@ -227,15 +228,10 @@ const CommandIndicator = GObject.registerClass(
 
         _loadUserConfig() {
             // load config.json
-            let configPath = GLib.build_filenamev([
-                GLib.get_home_dir(),
-                '.local',
-                'share',
-                'gnome-shell',
-                'extensions',
-                'commandpalette@herrderkekse.github.com',
-                'config.json',
-            ]);
+            let configPath = this._settings.get_string('config-path');
+            if (configPath.startsWith('~')) {
+                configPath = configPath.replace('~', GLib.get_home_dir());
+            }
 
             try {
                 let [ok, contents] = GLib.file_get_contents(configPath);
@@ -263,7 +259,7 @@ export default class CommandPaletteExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
 
-        this._indicator = new CommandIndicator();
+        this._indicator = new CommandIndicator(this._settings);
         Main.panel.addToStatusArea(this.uuid, this._indicator);
 
         Main.wm.addKeybinding(
