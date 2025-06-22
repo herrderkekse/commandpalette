@@ -1,13 +1,14 @@
 import Adw from 'gi://Adw';
-import GLib from 'gi://GLib';
 import Gtk from 'gi://Gtk';
+
 import { CommandRow } from './components/commandRow.js';
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+import { getFreeId, loadConfig, saveConfig } from './services/storageUtil.js';
 
 export default class CommandPalettePrefs extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
-        let commands = _loadConfig(settings.get_string('config-path'));
+        let commands = loadConfig(settings.get_string('config-path'));
 
         const page = new Adw.PreferencesPage();
         const group = new Adw.PreferencesGroup({
@@ -41,7 +42,7 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
             settings.set_string('config-path', val);
 
             // Refresh UI when config path changes
-            commands = _loadConfig(configPathRow.text);
+            commands = loadConfig(configPathRow.text);
             _refreshCommandsUI();
         });
         group.add(configPathRow);
@@ -57,9 +58,9 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
         // --- Add Command button ---
         const addCmdBtn = new Adw.ButtonRow({ title: 'Add Command' });
         addCmdBtn.connect('activated', () => {
-            commands.push({ name: '', script: '', args: [], id: `cmd-${_getFreeId()}` });
+            commands.push({ name: '', script: '', args: [], id: `cmd-${getFreeId(commands)}` });
             _refreshCommandsUI();
-            _saveConfig(configPathRow.text, commands);
+            saveConfig(configPathRow.text, commands);
         });
         group.add(addCmdBtn);
 
@@ -71,11 +72,11 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
 
         function onCommandChange(index, updatedCommand) {
             commands[index] = updatedCommand;
-            _saveConfig(configPathRow.text, commands);
+            saveConfig(configPathRow.text, commands);
 
             // if theres no empty command field at the end, add one
             if (!commands.some(cmd => cmd.name == '' && cmd.script == '' && cmd.args.length == 0)) {
-                commands.push({ name: '', script: '', args: [], id: `cmd-${_getFreeId()}` });
+                commands.push({ name: '', script: '', args: [], id: `cmd-${getFreeId(commands)}` });
                 const row = new CommandRow(commands[commands.length - 1], commands.length - 1, onCommandChange, onCommandRemove);
                 commandsBox.append(row.getWidget());
             }
@@ -84,7 +85,7 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
         function onCommandRemove(index) {
             commands.splice(index, 1);
             _refreshCommandsUI();
-            _saveConfig(configPathRow.text, commands);
+            saveConfig(configPathRow.text, commands);
         }
 
         function _refreshCommandsUI() {
@@ -96,65 +97,9 @@ export default class CommandPalettePrefs extends ExtensionPreferences {
 
             // if theres no empty command field at the end, add one
             if (!commands.some(cmd => cmd.name == '' && cmd.script == '' && cmd.args.length == 0)) {
-                commands.push({ name: '', script: '', args: [], id: `cmd-${_getFreeId()}` });
+                commands.push({ name: '', script: '', args: [], id: `cmd-${getFreeId(commands)}` });
                 const row = new CommandRow(commands[commands.length - 1], commands.length - 1, onCommandChange, onCommandRemove);
                 commandsBox.append(row.getWidget());
-            }
-        }
-
-        function _getFreeId() {
-            let id = 0;
-            while (commands.some(cmd => cmd.id === `cmd-${id}`)) {
-                id++;
-            }
-            return id;
-        }
-
-        function _loadConfig(configPath) {
-            // load config.json
-            if (configPath.startsWith('~')) {
-                configPath = configPath.replace('~', GLib.get_home_dir());
-            }
-
-            try {
-                let [ok, contents] = GLib.file_get_contents(configPath);
-                if (!ok) {
-                    log('Failed to read config file');
-                    return [];
-                }
-
-                let rawConfig = JSON.parse(imports.byteArray.toString(contents));
-
-                // Assign a unique ID to each entry (based on index)
-                return rawConfig.map((cmd, idx) => ({
-                    ...cmd,
-                    id: `cmd-${idx}`
-                }));
-
-            } catch (e) {
-                log(`Failed to load config: ${e}`);
-                return [];
-            }
-        }
-
-        function _saveConfig(configPath, data) {
-            if (configPath.startsWith('~')) {
-                configPath = configPath.replace('~', GLib.get_home_dir());
-            }
-            try {
-                // remove empty commands
-                data = data.filter(cmd => cmd.name !== '' || cmd.script !== '' || cmd.args.length !== 0);
-
-                // remove id from commands
-                data = data.map(cmd => {
-                    delete cmd.id;
-                    return cmd;
-                });
-
-                const jsonStr = JSON.stringify(data, null, 4);
-                GLib.file_set_contents(configPath, jsonStr);
-            } catch (e) {
-                log(`Failed to save config: ${e}`);
             }
         }
 

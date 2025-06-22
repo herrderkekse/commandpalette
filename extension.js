@@ -9,6 +9,7 @@ import Shell from 'gi://Shell';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import { loadConfig } from './services/storageUtil.js';
 
 
 
@@ -31,13 +32,8 @@ const CommandIndicator = GObject.registerClass(
 
             /*************** Initialize state variables ***************/
             this._selectedIndex = -1;
-            this._CONFIG = Object.freeze(this._loadUserConfig());
-            this._COMMAND_MAP = new Map(this._CONFIG.map(cmd => [cmd.id, cmd]));
-            this._COMMANDS = Object.freeze(this._CONFIG.map(cmd => ({
-                id: cmd.id,
-                name: cmd.name
-            })));
-            this._suggestions = this._COMMANDS;
+            this.config = loadConfig(this._settings.get_string('config-path'));
+            this._suggestions = this.config;
 
 
 
@@ -92,10 +88,14 @@ const CommandIndicator = GObject.registerClass(
 
 
         _showOverlay() {
+            this.config = loadConfig(this._settings.get_string('config-path'));
+            this._updateSuggestions();
+
             Main.layoutManager.addTopChrome(this._overlayBin);
             this._entry.show();
             this._entry.grab_key_focus();
         }
+
 
         _hideOverlay() {
             this._entry.text = '';
@@ -154,8 +154,7 @@ const CommandIndicator = GObject.registerClass(
         _updateSuggestions() {
             const text = this._entry.text.toLowerCase();
             this._suggestionBox.destroy_all_children();
-
-            const matches = this._COMMANDS.filter(cmd => cmd.name.toLowerCase().startsWith(text));
+            const matches = this.config.filter(cmd => cmd.name.toLowerCase().startsWith(text));
 
             if (text === '') {
                 // TODO: show history/most used commands
@@ -193,7 +192,6 @@ const CommandIndicator = GObject.registerClass(
         }
 
         _highlightSelected() {
-            console.log('highlighting ', this._selectedIndex);
             const children = this._suggestionBox.get_children();
             for (let i = 0; i < children.length; i++) {
                 if (i === this._selectedIndex) {
@@ -205,13 +203,13 @@ const CommandIndicator = GObject.registerClass(
         }
 
         _executeCommand(command) {
-            const matching = this._COMMANDS.find(cmd => cmd.name === command);
+            const matching = this.commands.find(cmd => cmd.name === command);
             if (matching)
                 this._executeCommandById(matching.id);
         }
 
         _executeCommandById(id) {
-            const cmd = this._COMMAND_MAP.get(id);
+            const cmd = this.config.find(cmd => cmd.id === id);
             if (!cmd) {
                 Main.notifyError(`Unknown command ID: ${id}`);
                 return;
@@ -226,33 +224,6 @@ const CommandIndicator = GObject.registerClass(
             }
         }
 
-        _loadUserConfig() {
-            // load config.json
-            let configPath = this._settings.get_string('config-path');
-            if (configPath.startsWith('~')) {
-                configPath = configPath.replace('~', GLib.get_home_dir());
-            }
-
-            try {
-                let [ok, contents] = GLib.file_get_contents(configPath);
-                if (!ok) {
-                    console.log('Failed to read config file');
-                    return [];
-                }
-
-                let rawConfig = JSON.parse(imports.byteArray.toString(contents));
-
-                // Assign a unique ID to each entry (based on index)
-                return rawConfig.map((cmd, idx) => ({
-                    ...cmd,
-                    id: `cmd-${idx}`
-                }));
-
-            } catch (e) {
-                console.log(`Failed to load config: ${e}`);
-                return [];
-            }
-        }
     });
 
 export default class CommandPaletteExtension extends Extension {
